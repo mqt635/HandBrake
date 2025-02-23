@@ -16,9 +16,8 @@ namespace HandBrakeWPF.ViewModels
     using System.Linq;
     using System.Windows;
 
-    using Caliburn.Micro;
+    using HandBrake.App.Core.Utilities;
 
-    using HandBrakeWPF.Factories;
     using HandBrakeWPF.Model.Audio;
     using HandBrakeWPF.Model.Picture;
     using HandBrakeWPF.Model.Subtitles;
@@ -26,10 +25,8 @@ namespace HandBrakeWPF.ViewModels
     using HandBrakeWPF.Services.Interfaces;
     using HandBrakeWPF.Services.Presets.Interfaces;
     using HandBrakeWPF.Services.Presets.Model;
-    using HandBrakeWPF.Utilities;
+    using HandBrakeWPF.Utilities.FileDialogs;
     using HandBrakeWPF.ViewModels.Interfaces;
-
-    using Microsoft.Win32;
 
     public class PresetManagerViewModel : ViewModelBase, IPresetManagerViewModel
     {
@@ -293,7 +290,7 @@ namespace HandBrakeWPF.ViewModels
 
         public void Import()
         {
-            OpenFileDialog dialog = new OpenFileDialog { Filter = "Preset Files|*.json;*.plist", CheckFileExists = true };
+            OpenFileDialog dialog = new OpenFileDialog { Filter = "Preset Files|*.json", CheckFileExists = true };
             bool? dialogResult = dialog.ShowDialog();
             if (dialogResult.HasValue && dialogResult.Value)
             {
@@ -321,7 +318,7 @@ namespace HandBrakeWPF.ViewModels
 
                 if (!string.IsNullOrEmpty(filename))
                 {
-                    this.presetService.Export(savefiledialog.FileName, this.selectedPreset.Name, HBConfigurationFactory.Create());
+                    this.presetService.Export(savefiledialog.FileName, this.selectedPreset.Name);
                 }
             }
             else
@@ -348,7 +345,7 @@ namespace HandBrakeWPF.ViewModels
             if (!string.IsNullOrEmpty(filename))
             {
                 IList<PresetDisplayCategory> userPresets = this.presetService.GetPresetCategories(true);
-                this.presetService.ExportCategories(savefiledialog.FileName, userPresets, HBConfigurationFactory.Create());
+                this.presetService.ExportCategories(savefiledialog.FileName, userPresets);
             }
         }
 

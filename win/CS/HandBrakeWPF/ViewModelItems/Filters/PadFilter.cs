@@ -7,14 +7,16 @@
 namespace HandBrakeWPF.ViewModelItems.Filters
 {
     using System.Collections.Generic;
+    using System.ComponentModel;
+    using System.Linq;
 
-    using Caliburn.Micro;
+    using HandBrake.App.Core.Utilities;
 
     using HandBrakeWPF.Model.Filters;
     using HandBrakeWPF.Services.Encode.Model;
     using HandBrakeWPF.Services.Presets.Model;
     using HandBrakeWPF.Services.Scan.Model;
-    using HandBrakeWPF.Utilities;
+    using HandBrakeWPF.ViewModels;
 
     using Action = System.Action;
 
@@ -40,7 +42,7 @@ namespace HandBrakeWPF.ViewModelItems.Filters
             private set => this.currentTask = value;
         }
 
-        public IEnumerable<PaddingMode> PaddingModes => EnumHelper<PaddingMode>.GetEnumList();
+        public BindingList<PaddingMode> PaddingModes => new BindingList<PaddingMode>(EnumHelper<PaddingMode>.GetEnumList().ToList());
 
         public PaddingMode Mode
         {
@@ -71,7 +73,7 @@ namespace HandBrakeWPF.ViewModelItems.Filters
 
         public bool IsCustomPaddingEnabled { get; set; }
 
-        public IEnumerable<PadColour> PaddingColours => EnumHelper<PadColour>.GetEnumList();
+        public BindingList<PadColour> PaddingColours => new BindingList<PadColour>(EnumHelper<PadColour>.GetEnumList().ToList());
 
         public PadColour Colour
         {

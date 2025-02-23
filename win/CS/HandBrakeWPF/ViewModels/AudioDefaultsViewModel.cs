@@ -9,25 +9,27 @@
 
 namespace HandBrakeWPF.ViewModels
 {
+    using System;
     using System.Collections.Generic;
     using System.Collections.ObjectModel;
     using System.ComponentModel;
     using System.Diagnostics;
     using System.Linq;
-    using System.Windows.Navigation;
+    using System.Runtime.CompilerServices;
 
-    using Caliburn.Micro;
-
+    using HandBrake.App.Core.Utilities;
     using HandBrake.Interop.Interop;
+    using HandBrake.Interop.Interop.Interfaces.Model;
+    using HandBrake.Interop.Interop.Interfaces.Model.Encoders;
     using HandBrake.Interop.Utilities;
 
+    using HandBrakeWPF.Commands;
     using HandBrakeWPF.Model.Audio;
     using HandBrakeWPF.Properties;
-    using HandBrakeWPF.Services.Encode.Model;
     using HandBrakeWPF.Services.Encode.Model.Models;
-    using HandBrakeWPF.Services.Presets.Model;
-    using HandBrakeWPF.Utilities;
+    using HandBrakeWPF.Services.Interfaces;
     using HandBrakeWPF.ViewModels.Interfaces;
+    using HandBrakeWPF.Views;
 
     /// <summary>
     /// The Audio View Model
@@ -41,7 +43,7 @@ namespace HandBrakeWPF.ViewModels
     {
         private readonly IWindowManager windowManager;
 
-        private BindingList<string> availableLanguages;
+        private BindingList<Language> availableLanguages;
         private AudioBehaviours audioBehaviours;
 
         /// <summary>
@@ -51,10 +53,10 @@ namespace HandBrakeWPF.ViewModels
         {
             this.windowManager = windowManager;
             this.AudioBehaviours = new AudioBehaviours();
-            this.SelectedAvailableToMove = new BindingList<string>();
-            this.SelectedLanguagesToMove = new BindingList<string>();
-            this.AvailableLanguages = new BindingList<string>();
-            this.AudioEncoders = EnumHelper<AudioEncoder>.GetEnumList();
+            this.SelectedAvailableToMove = new BindingList<Language>();
+            this.SelectedLanguagesToMove = new BindingList<Language>();
+            this.AvailableLanguages = new BindingList<Language>();
+            this.AudioEncoders = new List<HBAudioEncoder>(HandBrakeEncoderHelpers.AudioEncoders) { HBAudioEncoder.None }; 
 
             this.SampleRates = new ObservableCollection<string> { "Auto" };
             foreach (var item in HandBrakeEncoderHelpers.AudioSampleRates)
@@ -63,9 +65,21 @@ namespace HandBrakeWPF.ViewModels
             }
 
             this.Title = Resources.AudioViewModel_AudioDefaults;
+
+            BindingList<AudioFallbackWrapper> data = new BindingList<AudioFallbackWrapper>();
+            foreach (HBAudioEncoder encoder in HandBrakeEncoderHelpers.AudioEncoders.Where(s => s.IsPassthru && !s.IsAutoPassthru))
+            {
+                data.Add(new AudioFallbackWrapper(encoder));
+            }
+
+            this.PassthruEncoders = data;
+
+            this.RemoveTrackCommand = new SimpleRelayCommand<AudioBehaviourTrack>(this.RemoveTrack, null);
         }
 
         #region Properties
+
+        public ListboxDeleteCommand DeleteCommand => new ListboxDeleteCommand();
 
         public OutputFormat OutputFormat { get; private set; }
 
@@ -111,176 +125,28 @@ namespace HandBrakeWPF.ViewModels
         /// <summary>
         /// Gets SelectedLanguages.
         /// </summary>
-        public BindingList<string> SelectedAvailableToMove { get; private set; }
+        public BindingList<Language> SelectedAvailableToMove { get; private set; }
 
         /// <summary>
         /// Gets SelectedLanguages.
         /// </summary>
-        public BindingList<string> SelectedLanguagesToMove { get; private set; }
+        public BindingList<Language> SelectedLanguagesToMove { get; private set; }
 
-        public bool AudioAllowMP2Pass
-        {
-            get
-            {
-                return this.audioBehaviours.AllowedPassthruOptions.AudioAllowMP2Pass;
-            }
-
-            set
-            {
-                this.audioBehaviours.AllowedPassthruOptions.AudioAllowMP2Pass = value;
-                this.NotifyOfPropertyChange(() => this.AudioAllowMP2Pass);
-            }
-        }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether audio allow m p 3 pass.
-        /// </summary>
-        public bool AudioAllowMP3Pass
-        {
-            get
-            {
-                return this.audioBehaviours.AllowedPassthruOptions.AudioAllowMP3Pass;
-            }
-
-            set
-            {
-                this.audioBehaviours.AllowedPassthruOptions.AudioAllowMP3Pass = value;
-                this.NotifyOfPropertyChange(() => this.AudioAllowMP3Pass);
-            }
-        }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether audio allow aac pass.
-        /// </summary>
-        public bool AudioAllowAACPass
-        {
-            get
-            {
-                return this.audioBehaviours.AllowedPassthruOptions.AudioAllowAACPass;
-            }
-
-            set
-            {
-                this.audioBehaviours.AllowedPassthruOptions.AudioAllowAACPass = value;
-                this.NotifyOfPropertyChange(() => this.AudioAllowAACPass);
-            }
-        }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether audio allow ac3 pass.
-        /// </summary>
-        public bool AudioAllowAC3Pass
-        {
-            get
-            {
-                return this.audioBehaviours.AllowedPassthruOptions.AudioAllowAC3Pass;
-            }
-
-            set
-            {
-                this.audioBehaviours.AllowedPassthruOptions.AudioAllowAC3Pass = value;
-                this.NotifyOfPropertyChange(() => this.AudioAllowAC3Pass);
-            }
-        }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether audio allow eac3 pass.
-        /// </summary>
-        public bool AudioAllowEAC3Pass
-        {
-            get
-            {
-                return this.audioBehaviours.AllowedPassthruOptions.AudioAllowEAC3Pass;
-            }
-
-            set
-            {
-                this.audioBehaviours.AllowedPassthruOptions.AudioAllowEAC3Pass = value;
-                this.NotifyOfPropertyChange(() => this.AudioAllowEAC3Pass);
-            }
-        }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether audio allow dts pass.
-        /// </summary>
-        public bool AudioAllowDTSPass
-        {
-            get
-            {
-                return this.audioBehaviours.AllowedPassthruOptions.AudioAllowDTSPass;
-            }
-
-            set
-            {
-                this.audioBehaviours.AllowedPassthruOptions.AudioAllowDTSPass = value;
-                this.NotifyOfPropertyChange(() => this.AudioAllowDTSPass);
-            }
-        }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether audio allow dtshd pass.
-        /// </summary>
-        public bool AudioAllowDTSHDPass
-        {
-            get
-            {
-                return this.audioBehaviours.AllowedPassthruOptions.AudioAllowDTSHDPass;
-            }
-
-            set
-            {
-                this.audioBehaviours.AllowedPassthruOptions.AudioAllowDTSHDPass = value;
-                this.NotifyOfPropertyChange(() => this.AudioAllowDTSHDPass);
-            }
-        }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether audio allow true hd pass.
-        /// </summary>
-        public bool AudioAllowTrueHDPass
-        {
-            get
-            {
-                return this.audioBehaviours.AllowedPassthruOptions.AudioAllowTrueHDPass;
-            }
-
-            set
-            {
-                this.audioBehaviours.AllowedPassthruOptions.AudioAllowTrueHDPass = value;
-                this.NotifyOfPropertyChange(() => this.AudioAllowTrueHDPass);
-            }
-        }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether audio allow flac pass.
-        /// </summary>
-        public bool AudioAllowFlacPass
-        {
-            get
-            {
-                return this.audioBehaviours.AllowedPassthruOptions.AudioAllowFlacPass;
-            }
-
-            set
-            {
-                this.audioBehaviours.AllowedPassthruOptions.AudioAllowFlacPass = value;
-                this.NotifyOfPropertyChange(() => this.AudioAllowFlacPass);
-            }
-        }
+        public BindingList<AudioFallbackWrapper> PassthruEncoders { get; private set; }
 
         /// <summary>
         /// Gets or sets the audio encoder fallback.
         /// </summary>
-        public AudioEncoder AudioEncoderFallback
+        public HBAudioEncoder AudioEncoderFallback
         {
             get
             {
-                return this.audioBehaviours.AllowedPassthruOptions.AudioEncoderFallback;
+                return this.audioBehaviours.AudioFallbackEncoder;
             }
 
             set
             {
-                if (value == this.audioBehaviours.AllowedPassthruOptions.AudioEncoderFallback)
+                if (value == this.audioBehaviours.AudioFallbackEncoder)
                 {
                     return;
                 }
@@ -290,10 +156,12 @@ namespace HandBrakeWPF.ViewModels
                     item.SetFallbackEncoder(value);
                 }
 
-                this.audioBehaviours.AllowedPassthruOptions.AudioEncoderFallback = value;
+                this.audioBehaviours.AudioFallbackEncoder = value;
                 this.NotifyOfPropertyChange(() => this.AudioEncoderFallback);
             }
         }
+
+        public SimpleRelayCommand<AudioBehaviourTrack> RemoveTrackCommand { get; }
 
         #endregion
 
@@ -324,7 +192,7 @@ namespace HandBrakeWPF.ViewModels
         /// <summary>
         /// Gets AvailableLanguages.
         /// </summary>
-        public BindingList<string> AvailableLanguages
+        public BindingList<Language> AvailableLanguages
         {
             get
             {
@@ -341,7 +209,7 @@ namespace HandBrakeWPF.ViewModels
         /// <summary>
         /// Gets or sets AudioEncoders.
         /// </summary>
-        public IEnumerable<AudioEncoder> AudioEncoders { get; set; }
+        public IEnumerable<HBAudioEncoder> AudioEncoders { get; set; }
 
         /// <summary>
         /// Gets or sets SampleRates.
@@ -390,14 +258,14 @@ namespace HandBrakeWPF.ViewModels
         {
             if (this.SelectedAvailableToMove.Count > 0)
             {
-                List<string> copiedList = this.SelectedAvailableToMove.ToList();
-                foreach (string item in copiedList)
+                List<Language> copiedList = this.SelectedAvailableToMove.ToList();
+
+                foreach (Language item in copiedList)
                 {
-                    this.AvailableLanguages.Remove(item);
                     this.AudioBehaviours.SelectedLanguages.Add(item);
                 }
 
-                this.AvailableLanguages = new BindingList<string>(this.AvailableLanguages.OrderBy(o => o).ToList());
+                this.UpdateAvailableLanguages();
             }
         }
 
@@ -408,15 +276,14 @@ namespace HandBrakeWPF.ViewModels
         {
             if (this.SelectedLanguagesToMove.Count > 0)
             {
-                List<string> copiedList = this.SelectedLanguagesToMove.ToList();
-                foreach (string item in copiedList)
+                List<Language> copiedList = this.SelectedLanguagesToMove.ToList();
+                foreach (Language item in copiedList)
                 {
                     this.AudioBehaviours.SelectedLanguages.Remove(item);
-                    this.AvailableLanguages.Add(item);
                 }
             }
 
-            this.AvailableLanguages = new BindingList<string>(this.AvailableLanguages.OrderBy(o => o).ToList());
+            this.UpdateAvailableLanguages();
         }
 
         /// <summary>
@@ -424,13 +291,8 @@ namespace HandBrakeWPF.ViewModels
         /// </summary>
         public void LanguageClearAll()
         {
-            foreach (string item in this.AudioBehaviours.SelectedLanguages)
-            {
-                this.AvailableLanguages.Add(item);
-            }
-            this.AvailableLanguages = new BindingList<string>(this.AvailableLanguages.OrderBy(o => o).ToList());
-
             this.AudioBehaviours.SelectedLanguages.Clear();
+            this.UpdateAvailableLanguages();
         }
 
         #endregion
@@ -443,11 +305,8 @@ namespace HandBrakeWPF.ViewModels
             this.IsApplied = false;
             this.AudioBehaviours = new AudioBehaviours();
 
-            IDictionary<string, string> langList = LanguageUtilities.MapLanguages();
-            langList = (from entry in langList orderby entry.Key ascending select entry).ToDictionary(pair => pair.Key, pair => pair.Value);
-
             this.AvailableLanguages.Clear();
-            foreach (string item in langList.Keys)
+            foreach (Language item in HandBrakeLanguagesHelper.AllLanguagesWithAny)
             {
                 this.AvailableLanguages.Add(item);
             }
@@ -458,8 +317,18 @@ namespace HandBrakeWPF.ViewModels
             {
                 this.AudioBehaviours.SelectedBehaviour = behaviours.SelectedBehaviour;
                 this.AudioBehaviours.SelectedTrackDefaultBehaviour = behaviours.SelectedTrackDefaultBehaviour;
-                this.audioBehaviours.AllowedPassthruOptions = behaviours.AllowedPassthruOptions;
-             
+                this.AudioBehaviours.AllowedPassthruOptions = behaviours.AllowedPassthruOptions;
+                this.AudioBehaviours.AudioFallbackEncoder = behaviours.AudioFallbackEncoder;
+
+                foreach (var encoder in this.PassthruEncoders)
+                {
+                    encoder.IsEnabled = false;
+                    if (behaviours.AllowedPassthruOptions.Contains(encoder.Encoder))
+                    {
+                        encoder.IsEnabled = true;
+                    }
+                }
+                
                 foreach (AudioBehaviourTrack item in behaviours.BehaviourTracks)
                 {
                     this.BehaviourTracks.Add(new AudioBehaviourTrack(item));
@@ -467,24 +336,17 @@ namespace HandBrakeWPF.ViewModels
 
                 this.NotifyOfPropertyChange(() => this.BehaviourTracks);
 
-                foreach (string selectedItem in behaviours.SelectedLanguages)
+                foreach (Language selectedItem in behaviours.SelectedLanguages)
                 {
-                    this.AvailableLanguages.Remove(selectedItem);
                     this.AudioBehaviours.SelectedLanguages.Add(selectedItem);
                 }
+
+                this.UpdateAvailableLanguages();
             }
 
             this.CorrectAudioEncoders(this.OutputFormat);
 
-            this.NotifyOfPropertyChange(() => this.AudioAllowMP2Pass);
-            this.NotifyOfPropertyChange(() => this.AudioAllowMP3Pass);
-            this.NotifyOfPropertyChange(() => this.AudioAllowAACPass);
-            this.NotifyOfPropertyChange(() => this.AudioAllowAC3Pass);
-            this.NotifyOfPropertyChange(() => this.AudioAllowEAC3Pass);
-            this.NotifyOfPropertyChange(() => this.AudioAllowDTSPass);
-            this.NotifyOfPropertyChange(() => this.AudioAllowDTSHDPass);
-            this.NotifyOfPropertyChange(() => this.AudioAllowTrueHDPass);
-            this.NotifyOfPropertyChange(() => this.AudioAllowFlacPass);
+            this.NotifyOfPropertyChange(() => this.PassthruEncoders);
             this.NotifyOfPropertyChange(() => this.AudioEncoderFallback);
         }
 
@@ -509,7 +371,7 @@ namespace HandBrakeWPF.ViewModels
         public bool ShowWindow()
         {
             this.IsApplied = false;
-            this.windowManager.ShowDialogAsync(this);
+            this.windowManager.ShowDialog<AudioDefaultsView>(this);
 
             return this.IsApplied;
         }
@@ -517,44 +379,61 @@ namespace HandBrakeWPF.ViewModels
         public void Cancel()
         {
             this.IsApplied = false;
+            this.TryClose();
         }
 
         public void Save()
         {
+            this.audioBehaviours.AllowedPassthruOptions =
+                this.PassthruEncoders.Where(s => s.IsEnabled).Select(s => s.Encoder).ToList();
             this.IsApplied = true;
-            this.TryCloseAsync(false);
+            this.TryClose(true);
         }
-
 
         private void CorrectAudioEncoders(OutputFormat outputFormat)
         {
-            if (outputFormat == OutputFormat.Mp4 &&
-                (this.AudioEncoderFallback == AudioEncoder.ffflac || this.AudioEncoderFallback == AudioEncoder.ffflac24 || this.AudioEncoderFallback == AudioEncoder.Vorbis || this.AudioEncoderFallback == AudioEncoder.Opus))
+            if (outputFormat == OutputFormat.Mp4 && this.AudioEncoderFallback != null && !this.AudioEncoderFallback.SupportsMP4)
             {
-                this.AudioEncoderFallback = AudioEncoder.ffaac;
+                this.AudioEncoderFallback = HandBrakeEncoderHelpers.GetAudioEncoder(HBAudioEncoder.AvAac);
             }
 
-            if (outputFormat == OutputFormat.WebM &&
-                (this.AudioEncoderFallback != AudioEncoder.Opus && this.AudioEncoderFallback != AudioEncoder.Vorbis))
+            if (outputFormat == OutputFormat.WebM && this.AudioEncoderFallback != null && !this.AudioEncoderFallback.SupportsWebM)
             {
-                this.AudioEncoderFallback = AudioEncoder.Vorbis;
+                this.AudioEncoderFallback = HandBrakeEncoderHelpers.GetAudioEncoder(HBAudioEncoder.Vorbis);
             }
 
             if (outputFormat == OutputFormat.Mp4)
             {
-                foreach (AudioBehaviourTrack track in this.BehaviourTracks.Where(track => track.Encoder == AudioEncoder.ffflac || track.Encoder == AudioEncoder.ffflac24 || track.Encoder == AudioEncoder.Opus || track.Encoder == AudioEncoder.Vorbis))
+                foreach (AudioBehaviourTrack track in this.BehaviourTracks.Where(track => !track.Encoder.SupportsMP4))
                 {
-                    track.Encoder = AudioEncoder.ffaac;
+                    track.Encoder = HandBrakeEncoderHelpers.GetAudioEncoder(HBAudioEncoder.AvAac);
                 }
             }
 
             if (outputFormat == OutputFormat.WebM)
             {
-                foreach (AudioBehaviourTrack track in this.BehaviourTracks.Where(track => track.Encoder != AudioEncoder.Vorbis && track.Encoder != AudioEncoder.Opus))
+                foreach (AudioBehaviourTrack track in this.BehaviourTracks.Where(track => !track.Encoder.SupportsWebM))
                 {
-                    track.Encoder = AudioEncoder.Vorbis;
+                    track.Encoder = HandBrakeEncoderHelpers.GetAudioEncoder(HBAudioEncoder.Vorbis);
                 }
             }
+        }
+        
+        private void UpdateAvailableLanguages()
+        {
+            List<Language> copiedList = this.AudioBehaviours.SelectedLanguages.ToList();
+
+            BindingList<Language> newAvailable = new BindingList<Language>();
+
+            foreach (Language lang in HandBrakeLanguagesHelper.AllLanguagesWithAny)
+            {
+                if (!copiedList.Contains(lang))
+                {
+                    newAvailable.Add(lang);
+                }
+            }
+
+            this.AvailableLanguages = newAvailable;
         }
     }
 }

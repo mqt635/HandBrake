@@ -1,6 +1,6 @@
 /* param.c
  *
- * Copyright (c) 2003-2022 HandBrake Team
+ * Copyright (c) 2003-2025 HandBrake Team
  * This file is part of the HandBrake source code
  * Homepage: <http://handbrake.fr/>.
  * It may be used under the terms of the GNU General Public License v2.
@@ -13,9 +13,6 @@
 #include "handbrake/param.h"
 #include "handbrake/common.h"
 #include "handbrake/colormap.h"
-#if HB_PROJECT_FEATURE_QSV
-#include "handbrake/qsv_common.h"
-#endif
 #include <regex.h>
 
 static hb_filter_param_t nlmeans_presets[] =
@@ -211,20 +208,24 @@ static hb_filter_param_t decomb_presets[] =
     { 0, NULL,          NULL,         NULL              }
 };
 
-static hb_filter_param_t deinterlace_presets[] =
+static hb_filter_param_t yadif_presets[] =
 {
     { 1, "Custom",             "custom",       NULL             },
     { 3, "Default",            "default",      "mode=3"         },
     { 2, "Skip Spatial Check", "skip-spatial", "mode=1"         },
     { 5, "Bob",                "bob",          "mode=7"         },
-#if HB_PROJECT_FEATURE_QSV
-    { 6, "QSV",                "qsv",          "mode=11"        },
-#endif
     { 0,  NULL,                NULL,           NULL             },
     { 2, "Fast",               "fast",         "mode=1"         },
     { 3, "Slow",               "slow",         "mode=1"         },
     { 4, "Slower",             "slower",       "mode=3"         },
-    { 7, "QSV",                "qsv",          "mode=3"         }
+};
+
+static hb_filter_param_t bwdif_presets[] =
+{
+    { 1, "Custom",             "custom",       NULL             },
+    { 3, "Default",            "default",      "mode=3"         },
+    { 2, "Bob",                "bob",          "mode=7"         },
+    { 0,  NULL,                NULL,           NULL             },
 };
 
 typedef struct
@@ -269,8 +270,11 @@ static filter_param_map_t param_map[] =
     { HB_FILTER_DECOMB,      decomb_presets,      NULL,
       sizeof(decomb_presets) / sizeof(hb_filter_param_t),      0, },
 
-    { HB_FILTER_DEINTERLACE, deinterlace_presets, NULL,
-      sizeof(deinterlace_presets) / sizeof(hb_filter_param_t), 0, },
+    { HB_FILTER_YADIF, yadif_presets, NULL,
+      sizeof(yadif_presets) / sizeof(hb_filter_param_t),       0, },
+
+    { HB_FILTER_BWDIF, bwdif_presets, NULL,
+      sizeof(bwdif_presets) / sizeof(hb_filter_param_t),       0, },
 
     { HB_FILTER_DEBLOCK, deblock_presets, deblock_tunes,
       sizeof(deblock_presets) / sizeof(hb_filter_param_t),
@@ -278,16 +282,6 @@ static filter_param_map_t param_map[] =
 
     { HB_FILTER_INVALID,     NULL,                NULL,     0, 0, },
 };
-
-void hb_param_configure_qsv(void)
-{
-#if HB_PROJECT_FEATURE_QSV
-    if (!hb_qsv_available())
-    {
-        memset(&deinterlace_presets[4], 0, sizeof(hb_filter_param_t));
-    }
-#endif
-}
 
 /* NL-means presets and tunes
  *
@@ -1253,7 +1247,6 @@ hb_generate_filter_settings(int filter_id, const char *preset, const char *tune,
         case HB_FILTER_VFR:
         case HB_FILTER_RENDER_SUB:
         case HB_FILTER_GRAYSCALE:
-        case HB_FILTER_QSV:
             settings = hb_parse_filter_settings(custom);
             break;
         case HB_FILTER_NLMEANS:
@@ -1273,7 +1266,8 @@ hb_generate_filter_settings(int filter_id, const char *preset, const char *tune,
         case HB_FILTER_DECOMB:
         case HB_FILTER_DETELECINE:
         case HB_FILTER_HQDN3D:
-        case HB_FILTER_DEINTERLACE:
+        case HB_FILTER_YADIF:
+        case HB_FILTER_BWDIF:
         case HB_FILTER_COLORSPACE:
             settings = generate_generic_settings(filter_id, preset,
                                                  tune, custom);
@@ -1416,6 +1410,10 @@ char * hb_filter_get_presets_json(int filter_id)
     hb_filter_param_t * table;
 
     table = filter_param_get_presets_internal(filter_id, NULL);
+    
+    if (table == NULL){
+        return NULL;
+    }
 
     for (count = 0; table[count].name != NULL; count++);
     for (ii = 0; ii < count; ii++)
@@ -1439,6 +1437,10 @@ char * hb_filter_get_tunes_json(int filter_id)
     hb_filter_param_t * table;
 
     table = filter_param_get_tunes_internal(filter_id, NULL);
+    
+    if (table == NULL){
+        return NULL;
+    }
 
     for (count = 0; table[count].name != NULL; count++);
     for (ii = 0; ii < count; ii++)

@@ -9,11 +9,11 @@
 
 namespace HandBrakeWPF.Services.Encode.Model.Models
 {
-    using Caliburn.Micro;
-
+    using HandBrake.Interop.Interop.Interfaces.Model;
     using HandBrake.Interop.Utilities;
 
     using HandBrakeWPF.Services.Scan.Model;
+    using HandBrakeWPF.ViewModels;
 
     public class SubtitleTrack : PropertyChangedBase
     {
@@ -44,7 +44,7 @@ namespace HandBrakeWPF.Services.Encode.Model.Models
         /// </summary>
         private bool forced;
 
-        private string srtLang;
+        private Language srtLang;
 
         private string name;
 
@@ -217,7 +217,7 @@ namespace HandBrakeWPF.Services.Encode.Model.Models
         /// <summary>
         ///   Gets or sets the SRT Language
         /// </summary>
-        public string SrtLang
+        public Language SrtLang
         {
             get
             {
@@ -226,8 +226,7 @@ namespace HandBrakeWPF.Services.Encode.Model.Models
             set
             {
                 this.srtLang = value;
-                string iso639 = LanguageUtilities.GetLanguageCode(this.srtLang);
-                this.SrtLangCode = iso639;
+                this.SrtLangCode = value?.Code;
             }
         }
 
